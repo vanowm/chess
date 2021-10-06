@@ -6,7 +6,7 @@
         elPromotion = document.getElementById("promotion"),
         elContent = document.getElementById("content"),
         elCell = document.createElement("li"),
-        elStats = document.getElementById("stats"),
+//        elStats = document.getElementById("stats"),
         elCaptured = document.getElementById("captured"),
         elReset = document.getElementById("reset");
   
@@ -41,9 +41,9 @@
         9: "n",10:"N",
         11:"p",12:"P",
         13:"e",
-        0: "", "":0
+        0: "", "":0, " ":0
       };
-    this.stats = {
+      this.stats = {
         pieces: {},
         moves: 0,
         time: {
@@ -85,7 +85,7 @@
 
       this.castling = [3, 3]; //bitwise, odd = king side, even queen side
       this.turn = (data.match(/[tT]/) || ["t"])[0] == "t";
-      this.captured = (data.match(/a([qrbnpKQRBNP]+)/) || ["", ""])[1]
+      this.captured = (data.match(/c([qrbnpKQRBNP]+)/) || ["", ""])[1]
                       .replace(/[^qrbnpQRBNP]/g, "")
                       .split("")
                       .filter(e => this.pieces[e])
@@ -95,22 +95,16 @@
             regexCastling = /([cC])([0-9]+)/g;
 
       let p;
-      while ((p = regexTable.exec(data)) !== null)
+      for(let i = 0; i < 64; i++)
+        this.table[i] = this.pieces[data[i]];
+
+      const match = data.match(/C([0-3]{1,2})/);
+      if (match)
       {
-        const index = ~~p[2] & 63,
-          id = ~~this.pieces[p[1]];
-
-        if (this.table[index]) //treat overlaping figures as captured
-        {
-          this.captured.push(this.table[index], id);
-          this.table[index] = 0;
-        }
-        else
-          this.table[index] = id;
+        const castling = (match[1] + "33").split("");
+        this.castling[0] = ~~(castling[0] & 3);
+        this.castling[1] = ~~(castling[1] & 3);
       }
-
-      while ((p = regexCastling.exec(data)) !== null)
-        this.castling[~~(p[1] == "C")] = ~~p[2] & 3;
 
       //make sure pieces position is correct for castling
       this.castling.forEach((c, i) =>
@@ -141,7 +135,7 @@
 
     get default()
     {
-      return "r0n1b2q3k4b5n6r7p8p9p10p11p12p13p14p15P48P49P50P51P52P53P54P55R56N57B58Q59K60B61N62R63";
+      return "rnbqkbnrpppppppp                                PPPPPPPPRNBQKBNR";
     }
 
     reset()
@@ -399,6 +393,7 @@
 
     save(id)
     {
+      console.log(this.string);
       return localStorage.setItem("chess" + (id || ""), this.string);
     }
 
@@ -406,25 +401,22 @@
     {
       const r = [];
       for (let i = 0; i < 64; i++)
-      {
-        if (this.table[i])
-        {
-          r[r.length] = this.pieces[this.table[i]] + i;
-        }
-      }
-      this.castling.forEach((d, i) => r[r.length] = ["c", "C"][i] + d);
-      r[r.length] = ["T", "t"][~~this.turn];
+        r[r.length] = this.pieces[this.table[i]]||" ";
 
+      r[r.length] = "C" + this.castling.join("");
+      r[r.length] = ["T", "t"][~~this.turn];
       if (this.captured.length)
-        r[r.length] = "a" + this.captured.map(c => this.pieces[c]).join("");
+        r[r.length] = "c" + this.captured.map(c => this.pieces[c]).join("");
 
       return r.join("");
     }
   }
   let prevMatch = localStorage.getItem("chess");
 //  const chess = new Chess("r0n16k31b6r7p48p33p12p38P27q41n1K59p13p10b18P8P49P50p53P14P55R40N57B60Q25B61N62R63c3C3TaPPp"); //[...new Array(64)].fill(0);
-  const chess = new Chess("Q2p10p13n16q18k19e20p28K35Q37p38P55N62R63c0C0TaPPprBqPnQrNqRbbBPpP"); //[...new Array(64)].fill(0);
-  //const chess = new Chess(0); //[...new Array(64)].fill(0);
+  // const chess = new Chess("Q2p10p13n16q18k19e20p28K35Q37p38P55N62R63c0C0TaPPprBqPnQrNqRbbBPpP"); //[...new Array(64)].fill(0);
+  // const chess = new Chess("rnbqkbnrpppppppp                                PPPPPPPPRNBQKBNR"); //default
+  const chess = new Chess(0); // reload last session
+  console.log(chess.table.map(e => chess.pieces[e]||" ").join(""))
   updateBoard();
 
   function updateBoard()
@@ -762,7 +754,7 @@ console.log(chess.stats);
       }
       //console.log(chess.stats);
     }
-    const boardStatus = chess.string;
+    // const boardStatus = chess.string;
     if (!promotion)
       chess.save();
 
