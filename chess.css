@@ -1,6 +1,7 @@
 body
 {
   font-family: sans-serif;
+  background-color: green;
 }
 
 .content
@@ -102,18 +103,23 @@ body
   grid-row: 3;
 }
 
-.cell,
-.cell::after,
-.board,
+.board
+{
+  color: white !important;
+  text-shadow: 1px 0 0 black, 0 1px 0 black, 0 -1px 0 black, -1px 0 0 black, 1px 1px 0 black, -1px -1px 0 black, 1px -1px 0 black, -1px 1px 0 black;
+}
+.cell::before,
 .board > .cell.attacking::before,
 .board > .cell.attacking::after,
 .board > .cell.check::before,
 .board > .cell.check::after,
-.captured
+.captured > .cell::after
 {
-  text-shadow: 1px 0 0 black, 0 1px 0 black, 0 -1px 0 black, -1px 0 0 black, 1px 1px 0 black, -1px -1px 0 black, 1px -1px 0 black, -1px 1px 0 black;
-  color: white;
-
+  --color: rgba(0,0,0,0.3);
+  --filter: drop-shadow(1px 0 0 var(--color)) drop-shadow(0 1px 0 var(--color)) drop-shadow(0 -1px 0 var(--color)) drop-shadow(-1px 0 0 var(--color))
+  drop-shadow(1px 1px 0 var(--color)) drop-shadow(-1px -1px 0 var(--color)) drop-shadow(1px -1px 0 var(--color)) drop-shadow(-1px 1px 0 var(--color));
+  -webkit-filter: var(--filter);
+  filter: var(--filter);
 }
 
 .cell
@@ -132,7 +138,7 @@ body
 
 .cell::before
 {
-  content: attr(data-piece);
+  content: "";
   font-size: calc(var(--size) / 1.2);
   position: absolute;
   display: block;
@@ -141,6 +147,61 @@ body
   height: var(--size);
   text-align: center;
 }
+
+.cell[data-piece]::before
+{
+  min-width: 1em;
+  min-height: 1em;
+}
+.cell[data-piece="♚"]::before
+{
+  content: url("./?king_white_black");
+}
+.cell[data-piece="♚"].black::before
+{
+  content: url("./?king_black_white");
+}
+.cell[data-piece="♛"]::before
+{
+  content: url("./?queen_white_black");
+}
+.cell[data-piece="♛"].black::before
+{
+  content: url("./?queen_black_white");
+}
+.cell[data-piece="♜"]::before
+{
+  content: url("./?rook_white_black");
+}
+.cell[data-piece="♜"].black::before
+{
+  content: url("./?rook_black_white");
+}
+.cell[data-piece="♝"]::before
+{
+  content: url("./?bishop_white_black");
+}
+.cell[data-piece="♝"].black::before
+{
+  content: url("./?bishop_black_white");
+}
+.cell[data-piece="♞"]::before
+{
+  content: url("./?knight_white_black");
+}
+.cell[data-piece="♞"].black::before
+{
+  content: url("./?knight_black_white");
+}
+.cell[data-piece="♟"]::before
+{
+  content: url("./?pawn_white_black");
+}
+.cell[data-piece="♟"].black::before
+{
+  content: url("./?pawn_black_white");
+}
+
 
 .captured
 {
@@ -186,9 +247,8 @@ body
 
 .board.move > .cell.active::before
 {
+  content: "";
   z-index: 4;
-  color: transparent;
-  text-shadow: none;
 }
 
 .board > .cell.check:not(.move):not(.checkmate)
@@ -216,7 +276,6 @@ body
 .board > .cell.attacking::before
 {
   animation: bounce 1s ease infinite;
-  content: attr(data-piece);
   position: absolute;
   top: 0;
   left: 0;
@@ -269,17 +328,23 @@ body
   background-color: silver;
 }
 
+.board > .cell[data-canmove-b]::after
+{
+  text-shadow: 1px 0 0 white, 0 1px 0 white, 0 -1px 0 white, -1px 0 0 white;
+  color: black !important;
+}
+
 #promotion.black > .cell,
 .cell.black::before,
-.board > .cell[data-canmove-b]::after,
 .board > .cell.check.black::before,
 .board > .cell.checkmate.black::after,
 .board > .cell.attacking.black::before
 {
-  text-shadow: 1px 0 0 white, 0 1px 0 white, 0 -1px 0 white, -1px 0 0 white;
-
-/*  text-shadow: 1px 1px 0 white, -1px -1px 0 white, 1px -1px 0 white, -1px 1px 0 white; */
-  color: black;
+  --color: rgba(255,255,255,0.3);
+  --filter: drop-shadow(1px 0 0 var(--color)) drop-shadow(0 1px 0 var(--color)) drop-shadow(0 -1px 0 var(--color)) drop-shadow(-1px 0 0 var(--color))
+  drop-shadow(1px 1px 0 var(--color)) drop-shadow(-1px -1px 0 var(--color)) drop-shadow(1px -1px 0 var(--color)) drop-shadow(-1px 1px 0 var(--color));
+  -webkit-filter: var(--filter);
+  filter: var(--filter);
 }
 
 #promotion > .cell.available,

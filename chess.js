@@ -1,3 +1,9 @@
+({
+  "jsdom": {"file": "index.php"}, // Located in project root
+});
+
+/*jshint supernew: true, globals: true, evil: true, loopfunc: true, boss: true, expr: true, devel: true, scripturl: true, -W018, -W014*/
+"use strict";
 (e =>
 {
   const elBoard = document.getElementById("board"),
@@ -46,6 +52,7 @@
       this.stats = {
         pieces: {},
         moves: 0,
+        history: [],
         time: {
           black: 0,
           white: 0
@@ -79,7 +86,12 @@
       if (!data)
         data = this.default;
 
+
       this.table = [...new Array(64)].fill(0);
+
+      const history = (data.match(/(?<=h)([0-9]{1,2}[kqrbnpKQRBNP][0-9]{2}([kqrbnpKQRBNPe][qrbnQRBN]?)?)+/g)||[""])[0];
+      this.stats.history = history.match(/([0-9]{1,2}[kqrbnpKQRBNP][0-9]{2}([kqrbnpKQRBNPe][qrbnQRBN]?)?)/g)||[];
+
       if (Object.seal)
         Object.seal(this.table);
 
@@ -91,10 +103,6 @@
                       .filter(e => this.pieces[e])
                       .map(e => this.pieces[e]);
 
-      const regexTable = /([kqrbnpeKQRBNP])([0-9]+)/g,
-            regexCastling = /([cC])([0-9]+)/g;
-
-      let p;
       for(let i = 0; i < 64; i++)
         this.table[i] = this.pieces[data[i]];
 
@@ -146,9 +154,9 @@
     isPromotion(index)
     {
       const side = this.table[index] % 2,
-             type = this.pieces.type[this.table[index]];
+            type = this.pieces.type[this.table[index]];
 
-      return !(type != "p" || (index < [64, 56][side] && index > [7, -1][side]))
+      return !(type != "p" || (index < [64, 56][side] && index > [7, -1][side]));
     }
 
     getMoves(index, check, silent)
@@ -350,6 +358,122 @@
       return x < 0 || y < 0 || x > 7 || y > 7 ? -1 : y * 8 + x;
     }
 
+    hist2move(h)
+    {
+      const m = h.match(/(([0-9]{1,2})([kqrbnpKQRBNP])([0-9]{2})([kqrbnpKQRBNPe])?)/)||[];
+      return {
+        pID: ~~this.pieces[m[3]],
+        pIndex: ~~m[2],
+        tID: ~~this.pieces[m[5]],
+        tIndex: ~~m[4]
+      };
+    }
+
+    move2hist(pID, pIndex, tID, tIndex)
+    {
+      return "" + pIndex + this.pieces[pID] + ("0"+tIndex).substr(-2) + this.pieces[tID];
+    }
+
+    movePiece(table, pIndex, tIndex, target)
+    {
+      let tID = table[tIndex],
+          castlingIndex = [],
+          ret = false;
+    
+      const pID = table[pIndex],
+            pType = this.pieces.type[pID],
+            tType = this.pieces.type[tID],
+            pSide = pID % 2,
+            tIDOrig = tID,
+            tSide = (tType != "e" ? tID : ~~(!pSide)) % 2,
+            pIsBlack = ~~!(pID % 2);
+    
+      if (tType != "k")
+      {
+        if (!this.stats.pieces[pID])
+          this.stats.pieces[pID] = {
+            moves: 0,
+            captured: []
+          };
+    
+        this.stats.pieces[pID].moves++;
+        if (tID && tSide != pSide)
+        {
+          if (tType == "e")
+          {
+            if (pType == "p")
+            {
+              const nIndex = tIndex + (tSide ? 8 : -8);
+              tID = table[nIndex];
+              table[nIndex] = 0;
+            }
+            else
+              tID = 0;
+    
+          }
+          if (tID)
+          {
+            this.stats.pieces[pID].captured.push(tID);
+            this.captured.push(tID);
+          }
+        }
+        ret = {pID, tID};
+        table[tIndex] = pID;
+    
+        let p;
+        while ((p = table.indexOf(this.pieces.e)) != -1)
+          table[p] = 0;
+    
+        const moved = pIndex - tIndex;
+    console.log(this.stats);
+        /* castling move */
+        if (pType == "k" && (moved == 2 || moved == -2))
+        {
+          const rook = tIndex + (moved > 0 ? -2 : 1);
+    
+          castlingIndex = [rook, pIndex + (moved > 0 ? -1 : 1)];
+          table[castlingIndex[1]] = table[rook];
+          table[rook] = 0;
+        }
+        table[pIndex] = 0;
+        if (this.piece !== target)
+        {
+          let castlingSide = -1,
+              castlingVal = [0, 0];
+    
+          if (pType == "k")
+          {
+            castlingSide = [4, 60].indexOf(pIndex);
+          }
+          if (pType == "r")
+          {
+            castlingSide = [0, 56, 7, 63].indexOf(pIndex);
+            castlingVal = [2, 1];
+          }
+          if (castlingSide > -1)
+            this.castling[~~(castlingSide % 2)] &= castlingVal[~~(castlingSide / 2 % 2)];
+    
+          this.turn = !this.turn;
+          this.mustMove = null;
+    
+          if (pType == "p")
+          {
+            //en passant
+            if (Math.abs(pIndex - tIndex) == 16)
+            {
+              table[pIndex > tIndex ? tIndex + 8 : tIndex - 8] = this.pieces.e;
+            }
+    
+          }
+        }
+      }
+      this.stats.history.push(this.move2hist(pID, pIndex, tIDOrig, tIndex));
+      if (castlingIndex.length)
+        this.stats.history.push(this.move2hist(table[castlingIndex[1]], castlingIndex[0], table[castlingIndex[1]], castlingIndex[1]));
+            //console.log(this.stats);
+      return ret;
+    }
+
     isCheck(side, d, silent)
     {
       if (!d)
@@ -408,6 +532,9 @@
       if (this.captured.length)
         r[r.length] = "c" + this.captured.map(c => this.pieces[c]).join("");
 
+      if (this.stats.history.length)
+        r[r.length] = "h" + this.stats.history.join("");
+
       return r.join("");
     }
   }
@@ -415,8 +542,25 @@
 //  const chess = new Chess("r0n16k31b6r7p48p33p12p38P27q41n1K59p13p10b18P8P49P50p53P14P55R40N57B60Q25B61N62R63c3C3TaPPp"); //[...new Array(64)].fill(0);
   // const chess = new Chess("Q2p10p13n16q18k19e20p28K35Q37p38P55N62R63c0C0TaPPprBqPnQrNqRbbBPpP"); //[...new Array(64)].fill(0);
   // const chess = new Chess("rnbqkbnrpppppppp                                PPPPPPPPRNBQKBNR"); //default
-  const chess = new Chess(0); // reload last session
-  console.log(chess.table.map(e => chess.pieces[e]||" ").join(""))
+//  const chess = new Chess(0); // reload last session
+  const chess = new Chess(0);
+//  const chess = new Chess(Chess.prototype.default + ("" + prevMatch).substr(64));
+//   chess.turn = true;
+// //  const chess = c;
+//   const history = [...chess.stats.history];
+//   chess.stats.history = [];
+//   chess.captured = [];
+//   for(let i = 0; i < history.length; i++)
+//   {
+//     const m = c.hist2move(history[i]);
+//     console.log(m.pIndex, chess.table[m.pIndex], m.tIndex, chess.table[m.tIndex], history[i], m);
+//     console.log(chess.movePiece(chess.table, m.pIndex, m.tIndex));
+//   }
+//   console.log(prevMatch);
+//   console.log(c.string);
+//   console.log(prevMatch == c.string);
+//   console.log(chess);
+//   console.log(c);
   updateBoard();
 
   function updateBoard()
@@ -556,26 +700,33 @@
     return true;
   } //showPromotion()
 
+  let x,y;
   function onMouseDown(e)
   {
-    e.preventDefault();
+    if (e.type == "mousedown")
+      e.preventDefault();
+
     if (e.button || chess.checkmate || (e.target.parentNode !== elBoard && e.target.parentNode !== elPromotion))
       return;
 
     if (e.target.parentNode === elPromotion)
     {
       let pIndex = Array.prototype.indexOf.call(chess.piece.parentNode.children, chess.piece),
-           promo = Array.prototype.indexOf.call(e.target.parentNode.children, e.target);
+          promo = Array.prototype.indexOf.call(e.target.parentNode.children, e.target);
 
+      const pID = chess.table[pIndex];
       chess.table[pIndex] = promo * 2 + 3 + ~~!(chess.table[pIndex] % 2);
       elContent.classList.remove("promotion");
       chess.turn = !chess.turn;
       chess.save();
       updateBoard();
+      chess.stats.history.push(chess.move2hist(pID, pIndex, chess.table[pIndex], pIndex));
+      console.log(chess.stats.history);
       return;
     }
     if (elContent.classList.contains("promotion"))
       return;
+
     chess.piece = e.target;
     const index = Array.prototype.indexOf.call(chess.piece.parentNode.children, chess.piece),
           value = chess.table[index];
@@ -615,9 +766,15 @@
     if (!clone)
       return;
 
-    clone.style.left = (e.x + (e.pageX - e.x) - x) + "px";
-    clone.style.top = (e.y + (e.pageY - e.y) - y) + "px";
-    let targets = document.elementsFromPoint(e.x, e.y),
+    e.stopPropagation();
+    const curX = e.x !== undefined ? e.x : e.touches[0].clientX,
+          curY = e.y !== undefined ? e.y : e.touches[0].clientY,
+          pageX = e.x !== undefined ? e.pageX : e.touches[0].pageX,
+          pageY = e.y !== undefined ? e.pageY : e.touches[0].pageY;
+
+    clone.style.left = (curX + (pageX - curX) - x) + "px";
+    clone.style.top = (curY + (pageY - curY) - y) + "px";
+    let targets = document.elementsFromPoint(curX, curY),
         target = null;
 
     for (let i = 0; i < targets.length; i++)
@@ -652,8 +809,11 @@
 
     elBoard.classList.remove("move");
     clone = null;
+console.log(e);
+    const curX = e.x !== undefined ? e.x : e.changedTouches[0].clientX,
+          curY = e.y !== undefined ? e.y : e.changedTouches[0].clientY;
 
-    let target = document.elementFromPoint(e.x, e.y),
+    let target = document.elementFromPoint(curX, curY),
         promotion = false;
 
     if (!target.closest("#board") && !target.closest("#promotion"))
@@ -662,97 +822,16 @@
     const tIndex = Array.prototype.indexOf.call(target.parentNode.children, target);
     if (target.parentNode === elBoard && chess.piece && chess.piece.moves && chess.piece.moves.indexOf(tIndex) > -1)
     {
-      let tID = chess.table[tIndex];
       const pIndex = Array.prototype.indexOf.call(chess.piece.parentNode.children, chess.piece),
-            pID = chess.table[pIndex],
-            pType = chess.pieces.type[pID],
-            tType = chess.pieces.type[tID],
-            pSide = pID % 2,
-            tSide = (tType != "e" ? tID : ~~(!pSide)) % 2,
-            pIsBlack = ~~!(pID % 2);
+            move = chess.movePiece(chess.table, pIndex, tIndex);
 
-      if (tType != "k")
+      if (move)
       {
-        if (!chess.stats.pieces[pID])
-          chess.stats.pieces[pID] = {
-            moves: 0,
-            captured: []
-          };
-
-        chess.stats.pieces[pID].moves++;
-        if (tID && tSide != pSide)
-        {
-          if (tType == "e")
-          {
-            if (pType == "p")
-            {
-              const nIndex = tIndex + (tSide ? 8 : -8);
-              tID = chess.table[nIndex];
-              chess.table[nIndex] = 0;
-            }
-            else
-              tID = 0;
-
-          }
-          if (tID)
-          {
-            chess.stats.pieces[pID].captured.push(tID);
-            chess.captured.push(tID);
-          }
-        }
-        elCaptured.dataset.piece = chess.pieces.list[tID];
-        elCaptured.classList.toggle("black", pSide);
+        elCaptured.dataset.piece = chess.pieces.list[move.tID];
+        elCaptured.classList.toggle("black", move.pID % 2);
         elCaptured.style.left = target.offsetLeft + "px";
         elCaptured.style.top = target.offsetTop + "px";
-        chess.table[tIndex] = pID;
-
-        let p;
-        while ((p = chess.table.indexOf(chess.pieces.e)) != -1)
-          chess.table[p] = 0;
-
-        const moved = pIndex - tIndex;
-console.log(chess.stats);
-        if (pType == "k" && (moved == 2 || moved == -2))
-        {
-          const rook = tIndex + (moved > 0 ? -2 : 1);
-
-          chess.table[pIndex + (moved > 0 ? -1 : 1)] = chess.table[rook];
-          chess.table[rook] = 0;
-        }
-        chess.table[pIndex] = 0;
-
-        if (chess.piece !== target)
-        {
-          let castlingSide = -1,
-              castlingVal = [0, 0];
-
-          if (pType == "k")
-          {
-            castlingSide = [4, 60].indexOf(pIndex);
-          }
-          if (pType == "r")
-          {
-            castlingSide = [0, 56, 7, 63].indexOf(pIndex);
-            castlingVal = [2, 1];
-          }
-          if (castlingSide > -1)
-            chess.castling[~~(castlingSide % 2)] &= castlingVal[~~(castlingSide / 2 % 2)];
-
-          chess.turn = !chess.turn;
-          chess.mustMove = null;
-
-          if (pType == "p")
-          {
-            //en passant
-            if (Math.abs(pIndex - tIndex) == 16)
-            {
-              chess.table[pIndex > tIndex ? tIndex + 8 : tIndex - 8] = chess.pieces.e;
-            }
-
-          }
-        }
       }
-      //console.log(chess.stats);
     }
     // const boardStatus = chess.string;
     if (!promotion)
@@ -760,7 +839,7 @@ console.log(chess.stats);
 
     chess.piece && delete chess.piece.moves;
     chess.piece = null;
-     updateBoard();
+    updateBoard();
   }
   function movePiece(from, to)
   {
@@ -768,6 +847,9 @@ console.log(chess.stats);
   document.addEventListener("mousedown", onMouseDown, false);
   document.addEventListener("mouseup", onMouseUp, false);
   document.addEventListener("mousemove", onMouseMove, false);
+  document.addEventListener("touchstart", onMouseDown, false);
+  document.addEventListener("touchend", onMouseUp, false);
+  document.addEventListener("touchmove", onMouseMove, false);
   document.addEventListener("contextmenu", e => e.preventDefault(), false);
   elReset.addEventListener("click", e => 
   {
@@ -791,3 +873,4 @@ console.log(chess.stats);
   elContent.addEventListener("animationend", animationend);
   elContent.addEventListener("transitionend", animationend);
 })();
+
