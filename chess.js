@@ -12,24 +12,21 @@
         elPromotion = document.getElementById("promotion"),
         elContent = document.getElementById("content"),
         elCell = document.createElement("li"),
-//        elStats = document.getElementById("stats"),
+        elTimeTotal = document.getElementById("timeTotal"),
+        elTimeTurn = document.getElementById("timeTurn"),
+        elTimeWhite = document.getElementById("timeWhite"),
+        elTimeBlack = document.getElementById("timeBlack"),
         elCaptured = document.getElementById("captured"),
         elReset = document.getElementById("reset");
   
   let clone,
-      piece,
-      targetPrev;
+      targetPrev,
+      x,y,prevX,prevY;
 
   class Chess
   {
-    constructor(data)
-    {
-      this.init(data);
-    }
-
-    init(data)
-    {
-      this.pieces = {
+    get pieces()
+    { return {
         list: ["", "♚","♚","♛","♛","♜","♜","♝","♝","♞","♞","♟","♟",""/*en passant*/], //white odd, black even
         type: ["", "k", "k", "q", "q", "r", "r", "b", "b", "n", "n", "p", "p", "e"],
         name: ["", "King", "King", "Queen", "Queen", "Rook", "Rook", "Bishop", "Bishop", "Knight", "Knight", "Pawn", "Pawn", "En Passant"],
@@ -49,13 +46,30 @@
         13:"e",
         0: "", "":0, " ":0
       };
+    }
+
+    constructor(data, historyIndex)
+    {
+      this.init(data, historyIndex);
+    }
+
+    init(data, historyIndex)
+    {
       this.stats = {
         pieces: {},
         moves: 0,
         history: [],
         time: {
-          black: 0,
-          white: 0
+          started: 0,
+          last: 0,
+          black: {
+            total: 0,
+            lastMove: 0
+          },
+          white: {
+            total: 0,
+            lastMove: 0
+          }
         },
         captured: [],
         enpassant: { //https://en.wikipedia.org/wiki/Chess#En_passant
@@ -75,11 +89,12 @@
           white: 0
         }
       };
-      this.mustMove = false;
+      this.mustMove = true;
       this.pieceMustMove = null;
       this.piece = null; //active piece
       this.check = false;
       this.checkmate = false;
+      this.timer = null;
       if (data !== undefined)
         data = typeof data == "string" ? data : this.load(data);
 
@@ -89,56 +104,44 @@
 
       this.table = [...new Array(64)].fill(0);
 
-      const history = (data.match(/(?<=h)([0-9]{1,2}[kqrbnpKQRBNP][0-9]{2}([kqrbnpKQRBNPe][qrbnQRBN]?)?)+/g)||[""])[0];
-      this.stats.history = history.match(/([0-9]{1,2}[kqrbnpKQRBNP][0-9]{2}([kqrbnpKQRBNPe][qrbnQRBN]?)?)/g)||[];
-
       if (Object.seal)
         Object.seal(this.table);
 
-      this.castling = [3, 3]; //bitwise, odd = king side, even queen side
-      this.turn = (data.match(/[tT]/) || ["t"])[0] == "t";
-      this.captured = (data.match(/c([qrbnpKQRBNP]+)/) || ["", ""])[1]
-                      .replace(/[^qrbnpQRBNP]/g, "")
-                      .split("")
-                      .filter(e => this.pieces[e])
-                      .map(e => this.pieces[e]);
+      const history = data.substr(64),
+            info = history.split("|"),
+            historyList = history.match(/([0-9]*[0-9]{2}[kqrbnpKQRBNP][0-9]{2}([kqrbnpKQRBNPe])?)/g)||[],
+            preview = data.substr(0, 64);
 
-      for(let i = 0; i < 64; i++)
+      for(let i = 0, data = historyList.length || !preview ? this.default : preview; i < 64; i++)
         this.table[i] = this.pieces[data[i]];
 
-      const match = data.match(/C([0-3]{1,2})/);
-      if (match)
+      this.stats.time.started = info[0];
+      if (this.stats.time.started)
       {
-        const castling = (match[1] + "33").split("");
-        this.castling[0] = ~~(castling[0] & 3);
-        this.castling[1] = ~~(castling[1] & 3);
+        this.stats.time.started = new Date(Number(this.stats.time.started));
+        this.stats.time.last = this.stats.time.started;
+        this.timerStart();
+        // this.timerShow();
       }
 
-      //make sure pieces position is correct for castling
-      this.castling.forEach((c, i) =>
+      this.castling = [3,3];
+      this.captured = [];
+      this.turn = true;
+      for(let i = 0, prev = null; i < historyList.length; i++)
       {
-        const side = i % 2;
-        if (c)
-        {
-          if (this.pieces.type[this.table[[4, 60][side]]] != "k")
-            c = 0;
-          else
-          {
-            if (c & 1 && this.pieces.type[this.table[[0, 56][side]]] != "r")
-              c &= 2;
+        if (prev === historyList[i])
+          continue;
+    
+        const m = this.hist2move(historyList[i]);
+        if (m.tID && this.pieces.type[m.pID] == "p" && this.pieces.type[m.tID] != "e" && m.pID % 2 == m.tID % 2)
+          this.promote(m.pIndex, m.pID, m.tID);
+        else
+          this.movePiece(this.table, m.pIndex, m.tIndex, undefined, m.time);
 
-            if (c & 2 && this.pieces.type[this.table[[7, 63][side]]] != "r")
-              c &= 1;
-          }
-        }
-        this.castling[i] = c;
-      });
-
-      elPromotion.querySelectorAll(".cell").forEach((e, i) =>
-      {
-        e.dataset.piece = this.pieces.list[i * 2 + 3];
-      });
-
+        prev = this.stats.history[this.stats.history.length-1];
+      }
+      if (info.length > 2)
+        this.pieceMustMove = info[info.length-1];
     }
 
     get default()
@@ -184,6 +187,7 @@
 
               return (!notEmpty && pieceDest === 0);
             };
+
       if (!check)
       {
         const moves = this.getMoves(index, _data);
@@ -360,21 +364,23 @@
 
     hist2move(h)
     {
-      const m = h.match(/(([0-9]{1,2})([kqrbnpKQRBNP])([0-9]{2})([kqrbnpKQRBNPe])?)/)||[];
+      const m = h.match(/([0-9]*)([0-9]{2})([kqrbnpKQRBNP])([0-9]{2})([kqrbnpKQRBNPe])?/)||[];
       return {
         pID: ~~this.pieces[m[3]],
         pIndex: ~~m[2],
         tID: ~~this.pieces[m[5]],
-        tIndex: ~~m[4]
+        tIndex: ~~m[4],
+        time: ~~m[1] * 100
       };
     }
 
-    move2hist(pID, pIndex, tID, tIndex)
+    move2hist(pID, pIndex, tID, tIndex, time)
     {
-      return "" + pIndex + this.pieces[pID] + ("0"+tIndex).substr(-2) + this.pieces[tID];
+      time = Math.round(time / 100);
+      return (time ? time : "") + ("" + pIndex).padStart(2,0) + this.pieces[pID] + ("" + tIndex).padStart(2,0) + this.pieces[tID];
     }
 
-    movePiece(table, pIndex, tIndex, target)
+    movePiece(table, pIndex, tIndex, target, time)
     {
       let tID = table[tIndex],
           castlingIndex = [],
@@ -385,8 +391,7 @@
             tType = this.pieces.type[tID],
             pSide = pID % 2,
             tIDOrig = tID,
-            tSide = (tType != "e" ? tID : ~~(!pSide)) % 2,
-            pIsBlack = ~~!(pID % 2);
+            tSide = (tType != "e" ? tID : ~~(!pSide)) % 2;
     
       if (tType != "k")
       {
@@ -425,7 +430,6 @@
           table[p] = 0;
     
         const moved = pIndex - tIndex;
-    console.log(this.stats);
         /* castling move */
         if (pType == "k" && (moved == 2 || moved == -2))
         {
@@ -454,7 +458,7 @@
             this.castling[~~(castlingSide % 2)] &= castlingVal[~~(castlingSide / 2 % 2)];
     
           this.turn = !this.turn;
-          this.mustMove = null;
+          this.pieceMustMove = null;
     
           if (pType == "p")
           {
@@ -467,11 +471,31 @@
           }
         }
       }
-      this.stats.history.push(this.move2hist(pID, pIndex, tIDOrig, tIndex));
+      const stats = this.stats.time[["black", "white"][pSide]],
+            now = new Date();
+
+      if (!this.stats.time.started)
+      {
+        this.stats.time.started = now;
+        this.stats.time.last = now;
+      }
+
+      stats.lastMove = time !== undefined ? time : now - this.stats.time.last;
+      stats.total += stats.lastMove;
+      this.stats.time.last = time !== undefined ? new Date(this.stats.time.last.getTime() + time) : now;
+      this.stats.history.push(this.move2hist(pID, pIndex, tIDOrig, tIndex, stats.lastMove));
       if (castlingIndex.length)
-        this.stats.history.push(this.move2hist(table[castlingIndex[1]], castlingIndex[0], table[castlingIndex[1]], castlingIndex[1]));
+        this.stats.history.push(this.move2hist(table[castlingIndex[1]], castlingIndex[0], table[castlingIndex[1]], castlingIndex[1], stats.lastMove));
             //console.log(this.stats);
+if(!time)console.log(this.stats);
       return ret;
+    }
+
+    promote(pIndex, pID, tID)
+    {
+      this.table[pIndex] = tID;
+      this.stats.history.push(this.move2hist(pID, pIndex, tID, pIndex));
+
     }
 
     isCheck(side, d, silent)
@@ -517,53 +541,104 @@
 
     save(id)
     {
-      console.log(this.string);
-      return localStorage.setItem("chess" + (id || ""), this.string);
+      console.log(this.data);
+      return localStorage.setItem("chess" + (id || ""), this.data);
     }
 
-    get string()
+    get data()
     {
-      const r = [];
+      const r = [""];
       for (let i = 0; i < 64; i++)
-        r[r.length] = this.pieces[this.table[i]]||" ";
+        r[0] += this.pieces[this.table[i]]||" ";
 
-      r[r.length] = "C" + this.castling.join("");
-      r[r.length] = ["T", "t"][~~this.turn];
-      if (this.captured.length)
-        r[r.length] = "c" + this.captured.map(c => this.pieces[c]).join("");
+      if (this.stats.time.started)
+        r[r.length] = this.stats.time.started.getTime();
 
       if (this.stats.history.length)
-        r[r.length] = "h" + this.stats.history.join("");
+        r[r.length] = "|" + this.stats.history.join("");
+
+console.log(this.pieceMustMove);
+      if (this.pieceMustMove !== null)
+        r[r.length] = "|" + this.pieceMustMove;
 
       return r.join("");
     }
+
+    timerFormat(t)
+    {
+      const seconds = t / 1000,
+            sec = Math.round(seconds),
+            d = ~~(sec / 86400),
+            h = ~~((sec % 86400) / 3600),
+            m = ~~((sec % 3600) / 60),
+            s = Math.round(sec % 60);
+      return [
+        d || h ? (d ? d + "d": "") + (""+h).padStart(2, 0) : 0,
+        (h || d || m) ? (""+m).padStart(2,0) : 0,
+        (""+s).padStart(2,0) + (seconds - ~~seconds).toFixed(1).substr(1,2)
+      ].filter(Boolean).join(':');
+    }
+
+    timerShow()
+    {
+      const now = new Date(),
+            turn = now - this.stats.time.last;
+
+      elTimeTurn.textContent = this.timerFormat(turn);
+      elTimeTotal.textContent = this.timerFormat(now - this.stats.time.started);
+      let timeTotalWhite = this.stats.time.white.total,
+          timeTotalBlack = this.stats.time.black.total;
+
+      if (this.turn)
+        timeTotalWhite = turn + timeTotalWhite;
+      else
+        timeTotalBlack = turn + timeTotalBlack;
+
+      elTimeWhite.textContent = this.timerFormat(timeTotalWhite);
+      elTimeBlack.textContent = this.timerFormat(timeTotalBlack);
+      if (this.checkmate)
+        return true;
+    }
+
+    timerStart()
+    {
+      this.timerStop();
+      const that = this;
+      let prevTimestamp = 0;
+      !function loop(timestamp)
+      {
+        if (timestamp - prevTimestamp > 100)
+        {
+          prevTimestamp = timestamp;
+          if (that.timerShow())
+            return;
+        }
+        that.timer = requestAnimationFrame(loop);
+      }();
+    }
+
+    timerStop()
+    {
+      console.log(this.timer);
+      cancelAnimationFrame(this.timer);
+    }
+  
   }
-  let prevMatch = localStorage.getItem("chess");
 //  const chess = new Chess("r0n16k31b6r7p48p33p12p38P27q41n1K59p13p10b18P8P49P50p53P14P55R40N57B60Q25B61N62R63c3C3TaPPp"); //[...new Array(64)].fill(0);
   // const chess = new Chess("Q2p10p13n16q18k19e20p28K35Q37p38P55N62R63c0C0TaPPprBqPnQrNqRbbBPpP"); //[...new Array(64)].fill(0);
   // const chess = new Chess("rnbqkbnrpppppppp                                PPPPPPPPRNBQKBNR"); //default
 //  const chess = new Chess(0); // reload last session
-  const chess = new Chess(0);
-//  const chess = new Chess(Chess.prototype.default + ("" + prevMatch).substr(64));
-//   chess.turn = true;
-// //  const chess = c;
-//   const history = [...chess.stats.history];
-//   chess.stats.history = [];
-//   chess.captured = [];
-//   for(let i = 0; i < history.length; i++)
-//   {
-//     const m = c.hist2move(history[i]);
-//     console.log(m.pIndex, chess.table[m.pIndex], m.tIndex, chess.table[m.tIndex], history[i], m);
-//     console.log(chess.movePiece(chess.table, m.pIndex, m.tIndex));
-//   }
-//   console.log(prevMatch);
-//   console.log(c.string);
-//   console.log(prevMatch == c.string);
-//   console.log(chess);
-//   console.log(c);
-  updateBoard();
+  elPromotion.querySelectorAll(".cell").forEach((e, i) =>
+  {
+    e.dataset.piece = Chess.prototype.pieces.list[i * 2 + 3];
+  });
 
-  function updateBoard()
+  const chess = new Chess(0);
+  updateBoard();
+  selectPiece(chess.pieceMustMove);
+
+  elBoard.appendChild(document.querySelector(".overlay"));
+  function updateBoard(clear)
   {
     elBoard.classList.toggle("black", !chess.turn);
     chess.table.forEach((p, i) =>
@@ -571,18 +646,25 @@
       const s = elBoard.children[i] || elCell.cloneNode(false),
             nomoves = s.classList.contains("nomoves");
 
-      s.className = "cell";
+      if (clear !== false)
+        s.className = "cell";
+      else
+        s.classList.add("cell");
+
       s.classList.toggle("black", p && !(p % 2));
       s.classList.toggle("nomoves", nomoves);
+      s.classList.remove("promotion");
       s.title = chess.pieces.name[p];
-      if (s === chess.piece)
-        s.classList.add("active");
+      s.classList.toggle("active", s === chess.piece);
 
       s.textContent = " " + i;
       s.dataset.piece = chess.pieces.list[p] || "";
-      delete s.dataset.canmoveW;
-      delete s.dataset.canmoveB;
-      delete s.m;
+      if (clear !== false)
+      {
+        delete s.dataset.canmoveW;
+        delete s.dataset.canmoveB;
+        delete s.m;
+      }
       if (!elBoard.children[i])
         elBoard.appendChild(s);
 
@@ -632,13 +714,9 @@
       if (!pID)
         continue;
 
-      //	if (!(checkmate[0] + checkmate[1]))
-      //    	break;
+      const type = pID % 2,
+            moves = chess.getMoves(i, undefined, true);
 
-      const type = pID % 2;
-      //    if (!checkmate[type])
-      //    	continue;
-      const moves = chess.getMoves(i, undefined, true);
       if (!moves.length)
         continue;
 
@@ -653,22 +731,18 @@
       elBoard.children[king[~~!(chess.table[a] % 2)]].classList.add("check");
 
     });
-    checkmate.forEach((c, i) =>
+    const turn = ~~chess.turn;
+    if (checkmate[turn])
     {
-      if (!c)
-        return;
-
       chess.checkmate = true;
-      elBoard.children[king[i % 2]].classList.add("checkmate");
-    });
-
+      elBoard.children[king[turn]].classList.add("checkmate");
+    }
     showPromotion();
     elContent.classList.toggle("black", !chess.turn);
   } //updateBoard()
 
   function showPromotion(index)
   {
-    //  alert("promotion on startup is broken");
     if (index === undefined)
     {
       for (let i = 0, index; i < 8; i++)
@@ -692,6 +766,7 @@
     elContent.classList.add("promotion");
     elPromotion.classList.toggle("black", !side);
     const rect = target.getBoundingClientRect();
+    target.classList.add("promotion");
     elPromotion.style.top = rect.y + (side ? rect.height : 0) + "px";
     elPromotion.style.left = rect.x + "px";
     chess.piece = target;
@@ -700,7 +775,37 @@
     return true;
   } //showPromotion()
 
-  let x,y;
+  function selectPiece(index)
+  {
+    const piece = elBoard.children[index];
+    if (!piece)
+      return;
+
+console.log(index, piece);
+    if (!chess.getMoves(index, undefined, true).length)
+    {
+      piece.classList.add("nomoves");
+      
+      return;//updateBoard();
+    }
+    if (!chess.stats.time.started)
+    {
+      chess.stats.time.started = new Date();
+      chess.stats.time.last = chess.stats.time.started;
+      chess.timerStart();
+    }
+    if (chess.piece != piece)
+    {
+      chess.piece = piece;
+      updateBoard(true);
+    }
+
+    chess.piece.moves = chess.getMoves(index);
+    chess.piece.classList.toggle("active", true);
+    chess.piece.moves.forEach(i => elBoard.children[i].classList.add("canmove"));
+    return true;
+  }
+
   function onMouseDown(e)
   {
     if (e.type == "mousedown")
@@ -714,51 +819,46 @@
       let pIndex = Array.prototype.indexOf.call(chess.piece.parentNode.children, chess.piece),
           promo = Array.prototype.indexOf.call(e.target.parentNode.children, e.target);
 
-      const pID = chess.table[pIndex];
-      chess.table[pIndex] = promo * 2 + 3 + ~~!(chess.table[pIndex] % 2);
-      elContent.classList.remove("promotion");
+      chess.promote(pIndex, chess.table[pIndex], promo * 2 + 3 + ~~!(chess.table[pIndex] % 2));
       chess.turn = !chess.turn;
       chess.save();
       updateBoard();
-      chess.stats.history.push(chess.move2hist(pID, pIndex, chess.table[pIndex], pIndex));
-      console.log(chess.stats.history);
+
+      elContent.classList.remove("promotion");
       return;
     }
+
     if (elContent.classList.contains("promotion"))
       return;
 
-    chess.piece = e.target;
-    const index = Array.prototype.indexOf.call(chess.piece.parentNode.children, chess.piece),
+
+    const piece = e.target;
+    const index = Array.prototype.indexOf.call(piece.parentNode.children, piece),
           value = chess.table[index];
 
     if (!value || chess.turn != value % 2)
       return;
 
-    if (chess.mustMove && chess.pieceMustMove && chess.pieceMustMove != chess.piece)
+    if (chess.mustMove && chess.table[chess.pieceMustMove] && chess.pieceMustMove != index && chess.table[chess.pieceMustMove] % 2 == value % 2)
       return;
 
-    if (!chess.getMoves(index, undefined, true).length)
-    {
-      chess.piece.classList.add("nomoves");
-      
-      return ;//updateBoard();
-    }
-    chess.piece.moves = chess.getMoves(index);
-    chess.pieceMustMove = chess.piece;
+    if (!selectPiece(index))
+      return;
+
+console.log("index", index)
+    chess.pieceMustMove = index;//chess.piece;
     clone = chess.piece.cloneNode(false);
-    //  clone.className = "cell";
-    clone.classList.toggle("black", !(value % 2));
+    clone.classList.toggle("black", !(chess.table[index] % 2));
     clone.classList.remove("active");
     clone.classList.remove("attacking");
-    clone.classList.toggle("move", true);
     x = chess.piece.clientWidth / 2;
     y = chess.piece.clientHeight / 2;
     elBoard.appendChild(clone);
-    chess.piece.classList.toggle("active", true);
-    elBoard.classList.toggle("move", true);
-    //  chess.table.forEach((p,i) => elBoard.children[i].classList.remove("canmove"));
-    chess.piece.moves.forEach(i => elBoard.children[i].classList.add("canmove"));
-    onMouseMove(e);
+
+    prevX = e.x !== undefined ? e.x : e.touches[0].clientX;
+    prevY = e.y !== undefined ? e.y : e.touches[0].clientY;
+    clone.classList.toggle("move", true);
+    //    onMouseMove(e);
   }
 
   function onMouseMove(e)
@@ -772,6 +872,12 @@
           pageX = e.x !== undefined ? e.pageX : e.touches[0].pageX,
           pageY = e.y !== undefined ? e.pageY : e.touches[0].pageY;
 
+    if (curX != prevX || curY != prevY)
+    {
+      elBoard.classList.toggle("move", true);
+    }
+    prevX = curX;
+    prevY = curY;
     clone.style.left = (curX + (pageX - curX) - x) + "px";
     clone.style.top = (curY + (pageY - curY) - y) + "px";
     let targets = document.elementsFromPoint(curX, curY),
@@ -809,21 +915,20 @@
 
     elBoard.classList.remove("move");
     clone = null;
-console.log(e);
     const curX = e.x !== undefined ? e.x : e.changedTouches[0].clientX,
           curY = e.y !== undefined ? e.y : e.changedTouches[0].clientY;
 
     let target = document.elementFromPoint(curX, curY),
-        promotion = false;
+        move = chess.piece ? false : null;
 
-    if (!target.closest("#board") && !target.closest("#promotion"))
+    if ((!target.closest("#board") && !target.closest("#promotion")) || target.matches(".overlay"))
       return;
   
     const tIndex = Array.prototype.indexOf.call(target.parentNode.children, target);
     if (target.parentNode === elBoard && chess.piece && chess.piece.moves && chess.piece.moves.indexOf(tIndex) > -1)
     {
-      const pIndex = Array.prototype.indexOf.call(chess.piece.parentNode.children, chess.piece),
-            move = chess.movePiece(chess.table, pIndex, tIndex);
+      const pIndex = Array.prototype.indexOf.call(chess.piece.parentNode.children, chess.piece);
+      move = chess.movePiece(chess.table, pIndex, tIndex);
 
       if (move)
       {
@@ -834,15 +939,15 @@ console.log(e);
       }
     }
     // const boardStatus = chess.string;
-    if (!promotion)
-      chess.save();
+    chess.save();
 
-    chess.piece && delete chess.piece.moves;
-    chess.piece = null;
-    updateBoard();
-  }
-  function movePiece(from, to)
-  {
+console.log(chess.stats.history);
+    if (move)
+    {
+//      chess.piece && delete chess.piece.moves;
+      chess.piece = null;
+    }
+    updateBoard(move);
   }
   document.addEventListener("mousedown", onMouseDown, false);
   document.addEventListener("mouseup", onMouseUp, false);

@@ -50,14 +50,17 @@
         <div class="right"><div>8</div><div>7</div><div>6</div><div>5</div><div>4</div><div>3</div><div>2</div><div>1</div></div>
         <div id="capturedB" class="captured"></div>
         <div class="right2">
-        <div><button id="reset">reset</button>
+          <div id="timeBlack"></div>
+          <div class="turn">Turn: <span>white</span><span>black</span><div id="timeTurn"></div></div>
+          <div class="totalTime">Total: <span id="timeTotal"></span></div>
+        <div id="timeWhite"></div>
         </div>
-        <div class="turn">Turn: <span>white</span><span>black</span></div></div>
     </div>
     <div id="promotion"><li class="cell"></li><li class="cell"></li><li class="cell"></li><li class="cell"></li></div>
     <li id="captured" class="cell"></li>
     <div class="overlay"></div>
     </div>
+    <div><button id="reset">reset</button></div>
     <script src="chess.js" content="text/javascript; charset=UTF-8"></script>
 </body>
 </html>

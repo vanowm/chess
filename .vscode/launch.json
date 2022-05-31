@@ -9,7 +9,11 @@
     "request": "launch",
     "type": "pwa-msedge",
     "url": "http://storage/experiments/chess/",
-    "webRoot": "${workspaceFolder}"
+    "webRoot": "${workspaceFolder}",
+    "outputCapture": "console",
+    "console": "internalConsole",
+    "attach": "restart",
+    "restart": true,
 },
         {
             "type": "vscode-edge-devtools.debug",

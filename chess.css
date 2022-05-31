@@ -73,9 +73,29 @@ body
   grid-row: 3;
   align-self: auto;
   display: grid;
+  font-size: calc(var(--size) / 5)
 }
 
-.content:not(.black) .turn > span:last-child,
+.right2 > :first-child
+{
+  align-self: start;
+}
+
+.right2 > :last-child
+{
+  align-self: end;
+}
+
+.content .stats
+{
+  font-size: calc(var(--size) / 7)
+}
+
+#timeTurn
+{
+  text-align: end;
+}
+.content:not(.black) .turn > span:not(:first-child),
 .content.black .turn > span:first-child
 {
   display: none;
@@ -102,11 +122,15 @@ body
   grid-column: 2;
   grid-row: 3;
 }
+.content.promotion .board
+{
+  position: relative;
+}
 
 .board
 {
   color: white !important;
-  text-shadow: 1px 0 0 black, 0 1px 0 black, 0 -1px 0 black, -1px 0 0 black, 1px 1px 0 black, -1px -1px 0 black, 1px -1px 0 black, -1px 1px 0 black;
+  text-shadow: 0 0 2px black, 0 0 2px black, 0 0 2px black, 0 0 2px black;
 }
 .cell::before,
 .board > .cell.attacking::before,
@@ -115,9 +139,8 @@ body
 .board > .cell.check::after,
 .captured > .cell::after
 {
-  --color: rgba(0,0,0,0.3);
-  --filter: drop-shadow(1px 0 0 var(--color)) drop-shadow(0 1px 0 var(--color)) drop-shadow(0 -1px 0 var(--color)) drop-shadow(-1px 0 0 var(--color))
-  drop-shadow(1px 1px 0 var(--color)) drop-shadow(-1px -1px 0 var(--color)) drop-shadow(1px -1px 0 var(--color)) drop-shadow(-1px 1px 0 var(--color));
+  --color: rgba(0,0,0,0.5);
+  --filter: drop-shadow(0 0 1px var(--color)) drop-shadow(0 0 1px var(--color)) drop-shadow(0 0 1px var(--color)) drop-shadow(0 0 1px var(--color)) drop-shadow(0 0 10px var(--color));
   -webkit-filter: var(--filter);
   filter: var(--filter);
 }
@@ -165,6 +188,7 @@ body
 {
   content: url("./?queen_white_black");
 }
+#promotion.black > .cell[data-piece="♛"]::before,
 .cell[data-piece="♛"].black::before
 {
   content: url("./?queen_black_white");
@@ -173,6 +197,7 @@ body
 {
   content: url("./?rook_white_black");
 }
+#promotion.black > .cell[data-piece="♜"]::before,
 .cell[data-piece="♜"].black::before
 {
   content: url("./?rook_black_white");
@@ -181,6 +206,7 @@ body
 {
   content: url("./?bishop_white_black");
 }
+#promotion.black > .cell[data-piece="♝"]::before,
 .cell[data-piece="♝"].black::before
 {
   content: url("./?bishop_black_white");
@@ -189,6 +215,7 @@ body
 {
   content: url("./?knight_white_black");
 }
+#promotion.black > .cell[data-piece="♞"]::before,
 .cell[data-piece="♞"].black::before
 {
   content: url("./?knight_black_white");
@@ -205,28 +232,27 @@ body
 
 .captured
 {
-  height: 1em;
+  height: 1.5em;
 }
 #captured.captured,
 .captured .cell
 {
   width: 1.5em;
-  height: 1em;
-  line-height: 1em;
 }
 
 #captured.captured::before,
 .captured .cell::before
 {
   font-size: calc(var(--size) / 4);
-  line-height: 1em;
+  line-height: 0;
   width: unset;
   height: unset;
 }
 #captured.captured.black::before,
 #capturedB .cell::before
 {
-  font-size: calc(var(--size) / 3.4);
+  /* font-size: calc(var(--size) / 3.4); */
+  line-height: 0;
 }
 #capturedW
 {
@@ -242,7 +268,19 @@ body
 
 .board > .cell:not(.move)
 {
-  background-color: rgb(48, 48, 48);
+  background-color: rgb(78, 78, 78);
+}
+
+.board :nth-child(1) ~ :nth-child(-2n+8), 
+.board :nth-child(8) ~ :nth-child(-2n+15), 
+.board :nth-child(16) ~ :nth-child(-2n+24), 
+.board :nth-child(24) ~ :nth-child(-2n+31), 
+.board :nth-child(32) ~ :nth-child(-2n+40), 
+.board :nth-child(40) ~ :nth-child(-2n+47), 
+.board :nth-child(48) ~ :nth-child(-2n+56), 
+.board :nth-child(56) ~ :nth-child(-2n+63)
+{
+  background-color: silver;
 }
 
 .board.move > .cell.active::before
@@ -285,7 +323,11 @@ body
   line-height: var(--size);
 }
 
-.board > .cell.move
+.board:not(.move) > .cell.move
+{
+  display: none;
+}
+.board > .cell.move /* clone move */
 {
   position: absolute;
   z-index: 99;
@@ -316,33 +358,20 @@ body
   z-index: 1;
 }
 
-.board :nth-child(1) ~ :nth-child(-2n+8), 
-.board :nth-child(8) ~ :nth-child(-2n+15), 
-.board :nth-child(16) ~ :nth-child(-2n+24), 
-.board :nth-child(24) ~ :nth-child(-2n+31), 
-.board :nth-child(32) ~ :nth-child(-2n+40), 
-.board :nth-child(40) ~ :nth-child(-2n+47), 
-.board :nth-child(48) ~ :nth-child(-2n+56), 
-.board :nth-child(56) ~ :nth-child(-2n+63)
-{
-  background-color: silver;
-}
-
 .board > .cell[data-canmove-b]::after
 {
-  text-shadow: 1px 0 0 white, 0 1px 0 white, 0 -1px 0 white, -1px 0 0 white;
+  text-shadow: 0 0 2px white, 0 0 2px white, 0 0 2px white, 0 0 2px white;
   color: black !important;
 }
 
-#promotion.black > .cell,
+#promotion.black > .cell:before,
 .cell.black::before,
 .board > .cell.check.black::before,
 .board > .cell.checkmate.black::after,
 .board > .cell.attacking.black::before
 {
-  --color: rgba(255,255,255,0.3);
-  --filter: drop-shadow(1px 0 0 var(--color)) drop-shadow(0 1px 0 var(--color)) drop-shadow(0 -1px 0 var(--color)) drop-shadow(-1px 0 0 var(--color))
-  drop-shadow(1px 1px 0 var(--color)) drop-shadow(-1px -1px 0 var(--color)) drop-shadow(1px -1px 0 var(--color)) drop-shadow(-1px 1px 0 var(--color));
+  --color: rgba(255, 255, 255, 0.5);
+  --filter: drop-shadow(0 0 1px var(--color)) drop-shadow(0 0 10px var(--color));
   -webkit-filter: var(--filter);
   filter: var(--filter);
 }
@@ -421,7 +450,7 @@ body
   overflow: hidden;
   background-color: rgba(148, 148, 148, 0.8);
   filter: none;
-  transition: height 0.2s, transform 0.2s;
+  transition: transform 0.2s, height 0.2s;
 }
 
 #promotion.black
@@ -430,9 +459,9 @@ body
   background-color: rgba(148, 148, 148, 0.8);
 }
 
-.content.promotion > :not(#promotion)
+.content.promotion .board > :not(.promotion)
 {
-  filter: blur(0px);
+  filter: blur(2px);
 }
 
 .content.promotion #promotion
@@ -452,12 +481,12 @@ body
 
 .content.promotion .overlay
 {
-  position: fixed;
+  position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(0, 0, 0, 0.7);
+  background-color: rgba(0, 0, 0, 0.8);
   z-index: 98;
 }
 
@@ -468,7 +497,7 @@ body
 
 .content.promotion #promotion > .cell:hover
 {
-  transform: scale(1.4);
+  transform: scale(1.2);
 }
 
 .cell.nomoves:before
