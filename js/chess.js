@@ -845,7 +845,7 @@ console.log(index, piece);
     if (!selectPiece(index))
       return;
 
-console.log("index", index)
+console.log("index", index);
     chess.pieceMustMove = index;//chess.piece;
     clone = chess.piece.cloneNode(false);
     clone.classList.toggle("black", !(chess.table[index] % 2));
