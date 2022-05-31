@@ -10,7 +10,7 @@
       return $c;
     }
     $colors = array("unset" /* body */, "transparent" /* accent */);
-    $piece = @file_get_contents("pieces/" . preg_replace_callback("/^([a-zA-Z0-9]+)(?:[_-]([a-zA-Z0-9]+)(?:[_-]([a-zA-Z0-9]+))?)?$/", 
+    $piece = @file_get_contents("css/pieces/" . preg_replace_callback("/^([a-zA-Z0-9]+)(?:[_-]([a-zA-Z0-9]+)(?:[_-]([a-zA-Z0-9]+))?)?$/", 
       function($m)
       {
         global $colors;
@@ -37,7 +37,7 @@
   <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Chess</title>
-  <link rel="stylesheet" media="screen" href="chess.css">
+  <link rel="stylesheet" media="screen" href="<?=getfile("css/chess.css");?>">
 </head>
 <body>
     <div id="content" class="content">
@@ -61,7 +61,7 @@
     <div class="overlay"></div>
     </div>
     <div><button id="reset">reset</button></div>
-    <script src="chess.js" content="text/javascript; charset=UTF-8"></script>
+    <script src="<?=getfile("js/chess.js");?>" content="text/javascript; charset=UTF-8"></script>
 </body>
 </html>
 
